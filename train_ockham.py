@@ -309,32 +309,32 @@ while True:
         break
 
     # forward backward update, with optional gradient accumulation
-    for micro_step in range(gradient_accumulation_steps):
-        if ddp:
-            model.require_backward_grad_sync = (micro_step == gradient_accumulation_steps - 1)
-        
+    if use_ockham and ockham_learner is not None:
+        # OckhamLearner handles everything internally
+        X, Y = get_batch('train')
         with ctx:
-            if use_ockham and ockham_learner is not None:
-                # Use OckhamLearner for training step
-                X, Y = get_batch('train')
-                logits = model(X)
-                step_metrics = ockham_learner.adapt(X, Y, loss_fn)
-                loss = step_metrics['total_loss']
-            else:
-                # Standard training
+            logits = model(X)
+        step_metrics = ockham_learner.adapt(X, Y, loss_fn)
+        loss = torch.tensor(step_metrics['total_loss'])  # For logging
+    else:
+        # Standard training with gradient accumulation
+        for micro_step in range(gradient_accumulation_steps):
+            if ddp:
+                model.require_backward_grad_sync = (micro_step == gradient_accumulation_steps - 1)
+            
+            with ctx:
                 logits, loss = model(X, Y)
                 loss = loss / gradient_accumulation_steps
-        
-        X, Y = get_batch('train')
-        scaler.scale(loss).backward() if not use_ockham else None  # OckhamLearner handles backward
+            
+            X, Y = get_batch('train')
+            scaler.scale(loss).backward()
 
-    # clip the gradient
-    if grad_clip != 0.0:
-        scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-    
-    # step the optimizer and scaler if training in fp16
-    if not use_ockham:  # OckhamLearner handles optimizer step
+        # clip the gradient
+        if grad_clip != 0.0:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+        
+        # step the optimizer and scaler if training in fp16
         scaler.step(optimizer)
         scaler.update()
     
