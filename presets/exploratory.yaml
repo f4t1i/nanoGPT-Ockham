@@ -1,0 +1,50 @@
+# Exploratory Preset
+# High plasticity, more noise, aggressive adaptation
+# Use when: Exploring new domains, handling distribution shifts
+
+name: "Exploratory"
+description: "High plasticity, aggressive adaptation, more exploration"
+
+plugins:
+  - type: OckhamGatePlugin
+    params:
+      surprise_threshold: 1.0
+      adaptive: true
+      adaptation_rate: 0.02
+    
+  - type: CompressorPlugin
+    params:
+      threshold: 0.15
+      ratio: 1.5
+      attack: 0.2
+      release: 0.1
+      makeup_gain: 1.2
+      min_lambda: 0.0001
+      max_lambda: 0.1
+  
+  - type: EQPlugin
+    params:
+      bands:
+        easy: 0.3
+        medium: 1.0
+        hard: 2.0
+      adaptation_rate: 0.02
+  
+  - type: LimiterPlugin
+    params:
+      complexity_ceiling: 0.5
+      grad_norm_ceiling: 2.0
+      force_consolidate: false
+  
+  - type: SaturationPlugin
+    params:
+      drive: 0.03
+      noise_type: both
+      warmup_iters: 50
+
+# Base hyperparameters
+hyperparameters:
+  learning_rate: 0.002
+  lambda_ockham: 0.001
+  surprise_threshold: 1.0
+  consolidate_interval: 2000

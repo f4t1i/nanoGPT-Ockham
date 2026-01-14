@@ -1,0 +1,49 @@
+# Balanced Preset
+# Default configuration balancing stability and plasticity
+# Use when: General-purpose training, unsure which preset to use
+
+name: "Balanced"
+description: "Default balanced configuration for most use cases"
+
+plugins:
+  - type: OckhamGatePlugin
+    params:
+      surprise_threshold: 2.0
+      adaptive: false
+    
+  - type: CompressorPlugin
+    params:
+      threshold: 0.1
+      ratio: 2.0
+      attack: 0.1
+      release: 0.05
+      makeup_gain: 1.0
+      min_lambda: 0.001
+      max_lambda: 0.5
+  
+  - type: EQPlugin
+    params:
+      bands:
+        easy: 0.5
+        medium: 1.0
+        hard: 1.5
+      adaptation_rate: 0.01
+  
+  - type: LimiterPlugin
+    params:
+      complexity_ceiling: 0.2
+      grad_norm_ceiling: 1.0
+      force_consolidate: true
+  
+  - type: SaturationPlugin
+    params:
+      drive: 0.01
+      noise_type: learning_rate
+      warmup_iters: 100
+
+# Base hyperparameters
+hyperparameters:
+  learning_rate: 0.001
+  lambda_ockham: 0.01
+  surprise_threshold: 2.0
+  consolidate_interval: 1000

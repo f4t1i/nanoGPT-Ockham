@@ -1,0 +1,41 @@
+# Ockham Tight Preset
+# Strong regularization, minimal adaptation, maximum stability
+# Use when: You want to preserve knowledge and avoid drift
+
+name: "Ockham Tight"
+description: "Strong regularization, minimal adaptation, maximum stability"
+
+plugins:
+  - type: OckhamGatePlugin
+    params:
+      surprise_threshold: 2.5
+      adaptive: false
+    
+  - type: CompressorPlugin
+    params:
+      threshold: 0.08
+      ratio: 3.0
+      attack: 0.05
+      release: 0.02
+      makeup_gain: 0.8
+      min_lambda: 0.01
+      max_lambda: 0.5
+  
+  - type: LimiterPlugin
+    params:
+      complexity_ceiling: 0.1
+      grad_norm_ceiling: 0.5
+      force_consolidate: true
+  
+  - type: SaturationPlugin
+    params:
+      drive: 0.005
+      noise_type: learning_rate
+      warmup_iters: 200
+
+# Base hyperparameters
+hyperparameters:
+  learning_rate: 0.0005
+  lambda_ockham: 0.05
+  surprise_threshold: 2.5
+  consolidate_interval: 500
