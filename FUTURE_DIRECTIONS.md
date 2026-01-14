@@ -1,472 +1,377 @@
-# Future Directions: nanoGPT-Ockham
+# Future Directions
 
-This document outlines potential future extensions and improvements to the nanoGPT-Ockham framework.
+**nanoGPT-Ockham Development Roadmap**
 
 ---
 
-## 1. VST-Style Plugin System for Learning Methods
+## Status Update (2025-01-14)
 
-### Vision: "DAW for Learning"
+### ✅ Completed
 
-Inspired by Digital Audio Workstations (DAWs) and VST plugins, we can create a **modular plugin architecture** for training methods. Just as audio plugins transform sound signals, **learning plugins** would transform training dynamics.
+**Phase 1: Ockham Basics**
+- [x] OckhamLearner with Surprise Gate
+- [x] Anchor Regularization
+- [x] Consolidation mechanism
+- [x] OckhamMemory (Pareto-frontier model selection)
+- [x] Basic training integration
 
-### Core Concept
+**Phase 2: Dynamic Control (H2)**
+- [x] OckhamCompressor (audio compressor-inspired controller)
+- [x] Dynamic lambda_ockham adjustment
+- [x] Attack/Release dynamics
+- [x] Make-up gain for learning rate
 
-**Current State:**
-- Training = monolithic script with hardcoded hyperparameters
-- Changing behavior = manually editing 10+ parameters
+**Phase 3: Plugin System (C)**
+- [x] Plugin architecture (PluginHost, LearningPlugin, TrainingState)
+- [x] 5 core plugins:
+  - [x] OckhamGatePlugin
+  - [x] CompressorPlugin
+  - [x] EQPlugin
+  - [x] LimiterPlugin
+  - [x] SaturationPlugin
+- [x] Preset system with YAML loader
+- [x] 3 presets: ockham_tight, balanced, exploratory
+- [x] Complete documentation (PLUGIN_SYSTEM.md)
 
-**Future State:**
-- Training = plugin host with swappable modules
-- Changing behavior = switching a preset (like in a DAW)
+---
 
-### Plugin Architecture
+## Roadmap
 
+### Short-term (1-2 months)
+
+#### 1. Training Integration
+**Goal:** Seamless plugin system integration into `train_ockham.py`
+
+**Tasks:**
+- [ ] Add `--preset` flag to training script
+- [ ] Integrate PluginHost into training loop
+- [ ] Log plugin states to TensorBoard/WandB
+- [ ] Add plugin state checkpointing
+- [ ] Create training examples with different presets
+
+**Priority:** High  
+**Difficulty:** Medium
+
+---
+
+#### 2. Visualization Dashboard
+**Goal:** Real-time monitoring of plugin behavior
+
+**Tasks:**
+- [ ] Web-based dashboard (Flask/Streamlit)
+- [ ] Real-time plots:
+  - Update rate over time
+  - Complexity cost trajectory
+  - Lambda/LR adjustments (compressor)
+  - Plugin state evolution
+- [ ] Preset comparison view
+- [ ] Export plots as images
+
+**Priority:** Medium  
+**Difficulty:** Medium
+
+---
+
+#### 3. More Presets
+**Goal:** Domain-specific and use-case-specific presets
+
+**Presets to Add:**
+- [ ] `continual_learning`: For sequential task learning
+- [ ] `few_shot`: For few-shot fine-tuning
+- [ ] `efficient_pretrain`: For large-scale pre-training
+- [ ] `test_time_training`: For deployment-time adaptation
+- [ ] `vision`: Optimized for image models
+- [ ] `nlp`: Optimized for language models
+
+**Priority:** Medium  
+**Difficulty:** Low
+
+---
+
+#### 4. Benchmarks
+**Goal:** Quantitative evaluation on standard datasets
+
+**Datasets:**
+- [ ] TinyStories (language)
+- [ ] CIFAR-10 (vision)
+- [ ] WikiText-103 (language, large)
+- [ ] ImageNet-1K (vision, large)
+
+**Metrics:**
+- [ ] Final validation loss
+- [ ] Training time (wall-clock)
+- [ ] Number of updates performed
+- [ ] Memory usage
+- [ ] Catastrophic forgetting (continual learning)
+
+**Priority:** High  
+**Difficulty:** Medium-High
+
+---
+
+### Medium-term (3-6 months)
+
+#### 5. Automatic Preset Selection
+**Goal:** Meta-learning to select optimal preset for a given dataset/task
+
+**Approach:**
+- Train a meta-model on (dataset features, optimal preset) pairs
+- Features: loss distribution, gradient statistics, data complexity
+- Output: Recommended preset or custom plugin configuration
+
+**Priority:** Medium  
+**Difficulty:** High
+
+---
+
+#### 6. Plugin Marketplace
+**Goal:** Community-driven plugin ecosystem
+
+**Features:**
+- [ ] Plugin registry (GitHub-based or dedicated website)
+- [ ] Plugin submission guidelines
+- [ ] Plugin testing framework
+- [ ] Plugin versioning and dependencies
+- [ ] Example plugins:
+  - GradientNoisePlugin (add noise to gradients)
+  - MomentumSchedulerPlugin (adjust momentum dynamically)
+  - DropoutSchedulerPlugin (curriculum for dropout)
+  - QuantizationPlugin (progressive quantization)
+
+**Priority:** Low  
+**Difficulty:** Medium
+
+---
+
+#### 7. GUI for Preset Design
+**Goal:** Visual preset editor (like a DAW interface)
+
+**Features:**
+- [ ] Drag-and-drop plugin chain builder
+- [ ] Visual parameter adjustment (sliders, knobs)
+- [ ] Real-time preview of plugin behavior (simulation)
+- [ ] Export to YAML
+- [ ] Import from YAML
+- [ ] Preset library browser
+
+**Technologies:**
+- Web-based: React + D3.js
+- Desktop: Electron or PyQt
+
+**Priority:** Low  
+**Difficulty:** High
+
+---
+
+### Long-term (6+ months)
+
+#### 8. Learned Plugins
+**Goal:** Plugins that adapt their own parameters via learning
+
+**Approach:**
+- Each plugin has a small neural network that predicts its parameters
+- Train plugin networks via meta-learning or RL
+- Example: CompressorPlugin learns optimal threshold/ratio for each dataset
+
+**Challenges:**
+- Meta-learning overhead
+- Interpretability vs. adaptability trade-off
+
+**Priority:** Low  
+**Difficulty:** Very High
+
+---
+
+#### 9. Multi-Task Plugin Memory
+**Goal:** Share plugin states across related tasks
+
+**Approach:**
+- Maintain a memory of (task, plugin state) pairs
+- When starting a new task, retrieve similar task's plugin state
+- Fine-tune plugin state for new task
+
+**Use Case:**
+- Continual learning across many tasks
+- Transfer learning with plugin configurations
+
+**Priority:** Low  
+**Difficulty:** High
+
+---
+
+#### 10. Integration with Popular Frameworks
+**Goal:** Make nanoGPT-Ockham plugins usable in other frameworks
+
+**Targets:**
+- [ ] PyTorch Lightning (as callbacks)
+- [ ] Hugging Face Transformers (as Trainer callbacks)
+- [ ] JAX/Flax (as training hooks)
+- [ ] TensorFlow/Keras (as callbacks)
+
+**Priority:** Medium  
+**Difficulty:** Medium-High
+
+---
+
+## Research Directions
+
+### 1. Theoretical Analysis
+**Questions:**
+- What is the optimal surprise threshold for a given dataset?
+- How does anchor regularization relate to EWC and other continual learning methods?
+- Can we prove convergence guarantees for OckhamLearner?
+- What is the information-theoretic interpretation of complexity_cost?
+
+**Potential Collaborations:**
+- Academic labs working on continual learning
+- Meta-learning researchers
+- Information theory groups
+
+---
+
+### 2. Neuroscience Inspiration
+**Observation:** The brain doesn't update all synapses on every input.
+
+**Analogies:**
+- Surprise Gate ↔ Attention/Salience
+- Anchor Regularization ↔ Memory Consolidation (sleep)
+- Consolidation ↔ Synaptic Homeostasis
+
+**Research:**
+- Can we learn from neuroscience to improve plugin design?
+- Are there other brain mechanisms we should operationalize?
+
+---
+
+### 3. Audio Engineering Inspiration
+**Current Plugins:**
+- Compressor ✓
+- EQ ✓
+- Limiter ✓
+- Saturation ✓
+
+**Missing Plugins:**
+- **Reverb:** Add "echo" of past gradients (momentum-like)
+- **Delay:** Use delayed gradients (for stability)
+- **Chorus:** Ensemble of slightly different updates
+- **Flanger:** Oscillating learning rate
+- **Phaser:** Phase-shifted gradient updates
+
+**Research:**
+- Which audio effects have meaningful training analogs?
+- Can we create a "mixing board" for training?
+
+---
+
+## Community Contributions
+
+We welcome contributions in these areas:
+
+### High-Impact, Low-Effort
+- [ ] Add new presets for specific domains
+- [ ] Improve documentation with examples
+- [ ] Create tutorial notebooks (Jupyter)
+- [ ] Add unit tests for plugins
+
+### Medium-Impact, Medium-Effort
+- [ ] Implement new plugins (see audio engineering ideas)
+- [ ] Integrate with PyTorch Lightning or Hugging Face
+- [ ] Create benchmarks on standard datasets
+- [ ] Build visualization dashboard
+
+### High-Impact, High-Effort
+- [ ] Implement automatic preset selection
+- [ ] Build GUI for preset design
+- [ ] Conduct theoretical analysis
+- [ ] Implement learned plugins
+
+---
+
+## Open Questions
+
+1. **Optimal Plugin Order:** Does plugin order matter? Should we learn it?
+2. **Plugin Interactions:** How do plugins interact? Can we detect conflicts?
+3. **Preset Interpolation:** Can we interpolate between presets (e.g., 50% tight + 50% exploratory)?
+4. **Dynamic Preset Switching:** Should we switch presets during training?
+5. **Plugin Pruning:** Can we automatically remove unnecessary plugins from a chain?
+
+---
+
+## Experimental Ideas
+
+### 1. Adaptive Preset Switching
+**Idea:** Switch presets based on training phase.
+
+**Example:**
+- Phase 1 (0-30% training): `exploratory` (fast exploration)
+- Phase 2 (30-70% training): `balanced` (stable learning)
+- Phase 3 (70-100% training): `ockham_tight` (consolidation)
+
+**Implementation:**
 ```python
-class LearningPlugin:
-    """Base class for all learning plugins."""
-    
-    def on_batch_start(self, state: TrainingState) -> HyperParams:
-        """Called before processing a batch."""
-        return state.hparams
-    
-    def on_batch_end(self, state: TrainingState, metrics: Dict) -> None:
-        """Called after processing a batch."""
-        pass
-    
-    def on_consolidate(self, state: TrainingState) -> None:
-        """Called when model consolidates."""
-        pass
-
-
-class PluginHost:
-    """Manages and chains learning plugins."""
-    
-    def __init__(self, plugins: List[LearningPlugin]):
-        self.plugins = plugins
-    
-    def process_batch(self, batch, state):
-        # Pre-processing: let plugins adjust hyperparameters
-        for plugin in self.plugins:
-            state.hparams = plugin.on_batch_start(state)
-        
-        # Execute training step
-        metrics = train_step(batch, state.hparams)
-        
-        # Post-processing: let plugins react to metrics
-        for plugin in self.plugins:
-            plugin.on_batch_end(state, metrics)
-        
-        return metrics
+if progress < 0.3:
+    host = load_preset_simple("exploratory")
+elif progress < 0.7:
+    host = load_preset_simple("balanced")
+else:
+    host = load_preset_simple("ockham_tight")
 ```
 
 ---
 
-## 2. Mapping: Audio Plugins → Learning Plugins
+### 2. Plugin Ensembles
+**Idea:** Run multiple plugin chains in parallel and ensemble their hyperparameter suggestions.
 
-### Compressor → Learning Compressor
-
-**Audio Compressor:**
-- Threshold: Signal level that triggers compression
-- Ratio: How much to reduce signal above threshold
-- Attack/Release: How fast compression engages/disengages
-
-**Learning Compressor:**
+**Example:**
 ```python
-class CompressorPlugin(LearningPlugin):
-    """
-    Compresses gradient updates based on loss magnitude.
-    
-    - Threshold: surprise_threshold (minimum loss to trigger update)
-    - Ratio: How much to scale gradients when loss is high
-    - Attack/Release: How quickly to adjust learning rate
-    """
-    
-    def __init__(self, threshold=2.0, ratio=0.5, attack=0.1, release=0.01):
-        self.threshold = threshold
-        self.ratio = ratio
-        self.attack = attack
-        self.release = release
-        self.current_scale = 1.0
-    
-    def on_batch_start(self, state):
-        loss = state.metrics.get('task_loss', 0)
-        
-        # If loss exceeds threshold, compress (reduce) learning rate
-        if loss > self.threshold:
-            target_scale = self.ratio
-            self.current_scale += self.attack * (target_scale - self.current_scale)
-        else:
-            self.current_scale += self.release * (1.0 - self.current_scale)
-        
-        state.hparams.learning_rate *= self.current_scale
-        return state.hparams
-```
+host1 = load_preset_simple("balanced")
+host2 = load_preset_simple("exploratory")
 
-**Use Case:** Automatically dampen learning when model is unstable (high loss), restore when stable.
+state1 = host1.process_batch_start(state)
+state2 = host2.process_batch_start(state)
 
----
-
-### EQ → Curriculum/Loss EQ
-
-**Audio EQ:**
-- Multiple frequency bands (bass, mid, treble)
-- Each band has gain control
-- Shapes the overall frequency response
-
-**Learning EQ:**
-```python
-class CurriculumEQPlugin(LearningPlugin):
-    """
-    Adjusts weights for different data "bands" (easy vs. hard samples).
-    
-    - Bands: Different difficulty levels or data domains
-    - Gain per band: How much to emphasize each band
-    - Q-factor: How selective the filtering is
-    """
-    
-    def __init__(self, bands: Dict[str, float]):
-        # bands = {"easy": 0.5, "medium": 1.0, "hard": 1.5}
-        self.bands = bands
-    
-    def on_batch_start(self, state):
-        # Classify current batch difficulty
-        difficulty = self._estimate_difficulty(state.batch)
-        
-        # Apply gain for this band
-        weight = self.bands.get(difficulty, 1.0)
-        state.hparams.loss_weight = weight
-        
-        return state.hparams
-    
-    def _estimate_difficulty(self, batch):
-        # Simple heuristic: use loss from previous epoch
-        # Or: use pre-computed difficulty scores
-        return "medium"  # Placeholder
-```
-
-**Use Case:** Implement curriculum learning by gradually increasing weight on harder examples.
-
----
-
-### Limiter → Safety Layer
-
-**Audio Limiter:**
-- Hard ceiling on signal level
-- Prevents clipping/distortion
-
-**Learning Limiter:**
-```python
-class LimiterPlugin(LearningPlugin):
-    """
-    Hard cap on gradient norm, parameter change, or complexity cost.
-    
-    - Ceiling: Maximum allowed value
-    - Type: What to limit (grad_norm, delta_theta, complexity_cost)
-    """
-    
-    def __init__(self, ceiling=1.0, limit_type='grad_norm'):
-        self.ceiling = ceiling
-        self.limit_type = limit_type
-    
-    def on_batch_end(self, state, metrics):
-        if self.limit_type == 'complexity_cost':
-            if metrics['complexity_cost'] > self.ceiling:
-                # Force consolidation to reset anchor
-                state.learner.consolidate()
-                print(f"[Limiter] Complexity exceeded {self.ceiling}, consolidating.")
-```
-
-**Use Case:** Prevent catastrophic forgetting by limiting how far model can drift from anchor.
-
----
-
-### Saturation/Drive → Controlled Noise Injection
-
-**Audio Saturation:**
-- Adds harmonics and warmth
-- Controlled distortion for character
-
-**Learning Saturation:**
-```python
-class SaturationPlugin(LearningPlugin):
-    """
-    Adds controlled noise to gradients or embeddings.
-    
-    - Drive: Amount of noise to inject
-    - Type: Where to inject (gradients, embeddings, learning rate)
-    """
-    
-    def __init__(self, drive=0.01, noise_type='gradient'):
-        self.drive = drive
-        self.noise_type = noise_type
-    
-    def on_batch_end(self, state, metrics):
-        if self.noise_type == 'gradient':
-            for param in state.model.parameters():
-                if param.grad is not None:
-                    noise = torch.randn_like(param.grad) * self.drive
-                    param.grad += noise
-```
-
-**Use Case:** Improve robustness and exploration, especially in test-time training.
-
----
-
-## 3. Preset System
-
-Instead of manually tuning 20 hyperparameters, users load a **preset** that configures the entire plugin chain.
-
-### Example Presets
-
-**`preset_occam_tight.yaml`**
-```yaml
-name: "Ockham Tight"
-description: "Strong regularization, minimal adaptation, maximum stability"
-plugins:
-  - type: CompressorPlugin
-    params:
-      threshold: 2.5
-      ratio: 0.3
-      attack: 0.05
-      release: 0.02
-  
-  - type: LimiterPlugin
-    params:
-      ceiling: 0.1
-      limit_type: complexity_cost
-  
-  - type: OccamGatePlugin
-    params:
-      lambda_ockham: 0.05
-      surprise_threshold: 2.0
-```
-
-**`preset_exploratory.yaml`**
-```yaml
-name: "Exploratory Mix"
-description: "High plasticity, more noise, aggressive adaptation"
-plugins:
-  - type: CompressorPlugin
-    params:
-      threshold: 1.0
-      ratio: 0.8
-      attack: 0.2
-      release: 0.1
-  
-  - type: SaturationPlugin
-    params:
-      drive: 0.02
-      noise_type: gradient
-  
-  - type: OccamGatePlugin
-    params:
-      lambda_ockham: 0.001
-      surprise_threshold: 0.5
-```
-
-**`preset_balanced.yaml`**
-```yaml
-name: "Balanced"
-description: "Default balanced configuration"
-plugins:
-  - type: CompressorPlugin
-    params:
-      threshold: 2.0
-      ratio: 0.5
-      attack: 0.1
-      release: 0.05
-  
-  - type: CurriculumEQPlugin
-    params:
-      bands:
-        easy: 0.5
-        medium: 1.0
-        hard: 1.5
-  
-  - type: OccamGatePlugin
-    params:
-      lambda_ockham: 0.01
-      surprise_threshold: 1.5
-```
-
-### Usage
-
-```python
-from plugin_host import PluginHost
-from presets import load_preset
-
-# Load preset
-preset = load_preset("preset_occam_tight.yaml")
-
-# Create plugin host
-host = PluginHost(preset.plugins)
-
-# Use in training
-for batch in dataloader:
-    metrics = host.process_batch(batch, state)
+# Ensemble: average hyperparameters
+state.learning_rate = (state1.learning_rate + state2.learning_rate) / 2
+state.lambda_ockham = (state1.lambda_ockham + state2.lambda_ockham) / 2
 ```
 
 ---
 
-## 4. Macro Controls
+### 3. Plugin Ablation Study
+**Idea:** Systematically remove plugins to understand their individual contributions.
 
-Like synthesizers have "macro knobs" that control multiple parameters at once, we can create high-level controls:
+**Protocol:**
+1. Train with full preset (all plugins)
+2. Train with preset minus Plugin 1
+3. Train with preset minus Plugin 2
+4. ...
+5. Compare final validation loss
 
-### Stability ↔ Plasticity Slider
-
-```python
-def set_stability_plasticity(value: float):
-    """
-    value = 0.0: Maximum stability (tight Ockham, high lambda)
-    value = 1.0: Maximum plasticity (loose Ockham, low lambda)
-    """
-    lambda_ockham = 0.1 * (1.0 - value) + 0.001 * value
-    surprise_threshold = 3.0 * (1.0 - value) + 0.5 * value
-    consolidate_interval = 1000 * (1.0 - value) + 100 * value
-    
-    return {
-        'lambda_ockham': lambda_ockham,
-        'surprise_threshold': surprise_threshold,
-        'consolidate_interval': int(consolidate_interval)
-    }
-```
-
-### Sparsity ↔ Accuracy Slider
-
-```python
-def set_sparsity_accuracy(value: float):
-    """
-    value = 0.0: Maximum sparsity (skip many updates, save compute)
-    value = 1.0: Maximum accuracy (update on everything)
-    """
-    surprise_threshold = 5.0 * (1.0 - value) + 0.1 * value
-    update_frequency = 0.2 * (1.0 - value) + 1.0 * value
-    
-    return {
-        'surprise_threshold': surprise_threshold,
-        'target_update_rate': update_frequency
-    }
-```
+**Goal:** Identify which plugins are most important for each use case.
 
 ---
 
-## 5. Implementation Roadmap
+## Conclusion
 
-### Phase 1: Foundation (Current)
-- ✅ `OckhamLearner` with surprise gate
-- ✅ `OckhamMemory` for model selection
-- ✅ Basic training integration
+nanoGPT-Ockham has evolved from a simple idea (Ockham's Razor for training) into a comprehensive, modular framework. The plugin system opens up endless possibilities for experimentation and customization.
 
-### Phase 2: Plugin-Ready Refactor (2-4 weeks)
-- Add internal hooks to `OckhamLearner`:
-  - `on_batch_start()`
-  - `on_adapt()`
-  - `on_consolidate()`
-- Make hyperparameters dynamically adjustable
-- **No plugin system yet**, just the hooks
+**Next Steps:**
+1. Complete training integration
+2. Run benchmarks
+3. Gather community feedback
+4. Iterate based on real-world usage
 
-### Phase 3: Plugin System (1-2 months)
-- Implement `PluginHost` and `LearningPlugin` base class
-- Build 3 core plugins:
-  - `CompressorPlugin`
-  - `LimiterPlugin`
-  - `CurriculumEQPlugin`
-- Create 3 presets: Tight, Balanced, Exploratory
-- YAML-based preset loading
-
-### Phase 4: Expansion (3-6 months)
-- Add more plugins:
-  - `SaturationPlugin` (noise injection)
-  - `DelayPlugin` (memory horizon)
-  - `ReverbPlugin` (gradient echo)
-- Macro control system
-- Visualization dashboard (show plugin chain, real-time metrics)
-
-### Phase 5: Community (6+ months)
-- Plugin API documentation
-- Community plugin repository
-- GUI (web-based or desktop) for preset design
-- Integration with Weights & Biases, TensorBoard
+**Long-term Vision:**
+A training framework where you can "mix" your training dynamics like a DAW, with presets for common use cases and infinite customization for power users.
 
 ---
 
-## 6. Why This Matters
+**"Start simple. Prove the concept. Then extend."**
 
-### Current Problem
-- Training is opaque and hard to control
-- Hyperparameter tuning is trial-and-error
-- Behavior changes require deep code modifications
-
-### With Plugin System
-- Training becomes **transparent** (see what each plugin does)
-- Behavior changes via **presets** (no code changes)
-- **Composable** (mix and match plugins)
-- **Shareable** (distribute presets like VST presets)
-
-### Philosophical Alignment
-- **Ockham's Razor:** Start with minimal plugins, add only what's necessary
-- **MIRAS:** Modular, Interpretable, Reproducible, Auditable, Stable
-- **Engineering over Alchemy:** Explicit, measurable, controllable
+We've proven the concept. Now it's time to extend.
 
 ---
 
-## 7. Open Questions
-
-1. **Plugin Ordering:** Does order matter? (Like audio FX chains)
-2. **Plugin Conflicts:** What if two plugins try to set the same hyperparameter?
-3. **Performance:** Does the plugin overhead slow down training?
-4. **Preset Discovery:** How do users find the right preset for their task?
-5. **Automatic Tuning:** Can we use RL/Bayesian optimization to tune plugin parameters?
-
----
-
-## 8. Related Work
-
-- **Keras Callbacks:** Similar concept, but not as modular or composable
-- **PyTorch Lightning Callbacks:** More structured, but still code-heavy
-- **AutoML (e.g., Optuna):** Tunes hyperparameters, but doesn't provide plugin-style modularity
-- **RL for Hyperparameter Optimization:** Learns to adjust parameters, but lacks interpretability
-
-**Our Differentiator:** The DAW/VST metaphor + preset system + explicit modularity.
-
----
-
-## 9. Next Steps
-
-**Immediate (after Ockham v1.0 is proven):**
-1. Write detailed plugin API specification
-2. Refactor `OckhamLearner` to support hooks
-3. Implement `PluginHost` skeleton
-
-**Short-term (1-2 months):**
-1. Build 3 core plugins
-2. Create 3 presets
-3. Test on Shakespeare and TinyStories datasets
-
-**Long-term (3-6 months):**
-1. Expand plugin library
-2. Build visualization dashboard
-3. Open-source and invite community contributions
-
----
-
-## 10. Call to Action
-
-If you're reading this and find the idea compelling, here's how you can help:
-
-1. **Try nanoGPT-Ockham** and give feedback
-2. **Propose plugin ideas** (what would be useful for your use case?)
-3. **Contribute code** (implement a plugin or preset)
-4. **Share presets** (if you find a good configuration, share it!)
-
----
-
-**"Entities should not be multiplied beyond necessity."**  
-*Let's build training systems that respect this wisdom.*
-
----
-
-**Document Version:** 1.0  
+**Document Version:** 2.0  
 **Last Updated:** 2025-01-14  
-**Author:** nanoGPT-Ockham Project
+**Previous Version:** [FUTURE_DIRECTIONS_OLD.md](FUTURE_DIRECTIONS_OLD.md)
