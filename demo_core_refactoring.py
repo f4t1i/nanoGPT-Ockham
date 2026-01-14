@@ -11,7 +11,7 @@ This shows how mechanics (code) and policy (config) are cleanly separated.
 
 import numpy as np
 from ockham_context import OccamContext
-from plugins_v2 import OckhamGatePlugin, CompressorPlugin, LimiterPlugin
+from plugins_v2 import OckhamGatePlugin, CompressorPlugin, EQPlugin, LimiterPlugin, SaturationPlugin
 from ockham_memory_v2 import OckhamMemoryV2
 
 
@@ -67,12 +67,14 @@ def main():
     # ===== SETUP =====
     print("\n[SETUP] Initializing components...")
     
-    # Create plugins
+    # Create all 5 plugins
     gate = OckhamGatePlugin(surprise_threshold=1.5, adaptive=False)
     compressor = CompressorPlugin(threshold=0.1, ratio=2.0, attack=0.1, release=0.05)
+    eq = EQPlugin(bands={"easy": 0.5, "medium": 1.0, "hard": 1.5})
     limiter = LimiterPlugin(complexity_ceiling=0.15, force_consolidate=True)
+    saturation = SaturationPlugin(drive=0.01, noise_type='learning_rate', warmup_iters=10)
     
-    plugins = [gate, compressor, limiter]
+    plugins = [gate, compressor, eq, limiter, saturation]
     print(f"  Plugins: {[p.name for p in plugins]}")
     
     # Create memory

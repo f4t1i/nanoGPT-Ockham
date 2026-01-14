@@ -1,25 +1,23 @@
 """
-Complete Plugins V2 for nanoGPT-Ockham
+Core Learning Plugins V2 for nanoGPT-Ockham
 
-All 5 VST-inspired plugins using OccamContext:
-1. OckhamGatePlugin - Surprise gate
-2. CompressorPlugin - Dynamic hyperparameter control
-3. EQPlugin - Curriculum learning
-4. LimiterPlugin - Hard caps
-5. SaturationPlugin - Controlled noise injection
+Refactored to use OccamContext instead of TrainingState.
+This separates mechanics (code) from policy (config).
 """
 
+import torch
 import numpy as np
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from abc import ABC, abstractmethod
 from ockham_context import OccamContext
 
 
 class OccamPlugin(ABC):
     """
-    Base class for all Ockham plugins.
+    Base class for all Ockham plugins (V2).
     
-    Plugins modify the OccamContext as it flows through the plugin chain.
+    Uses OccamContext instead of TrainingState for cleaner separation
+    of mechanics and policy.
     """
     
     def __init__(self, name: str):
@@ -29,65 +27,69 @@ class OccamPlugin(ABC):
     @abstractmethod
     def on_batch_start(self, ctx: OccamContext) -> OccamContext:
         """
-        Called before training step.
-        Can modify hyperparameters (learning_rate, lambda_ockham, etc.)
+        Called before processing a batch.
+        
+        Plugins can modify hyperparameters here based on current metrics.
         
         Args:
-            ctx: Current OccamContext
+            ctx: Current Ockham context
         
         Returns:
-            Modified OccamContext
+            Modified Ockham context
         """
         pass
     
     def on_batch_end(self, ctx: OccamContext) -> None:
         """
-        Called after training step.
-        Can update internal state based on metrics.
+        Called after processing a batch.
+        
+        Plugins can update internal state or log metrics here.
         
         Args:
-            ctx: Current OccamContext (read-only)
+            ctx: Current Ockham context with updated metrics
         """
         pass
     
     def on_consolidate(self, ctx: OccamContext) -> None:
         """
-        Called when anchor is consolidated.
+        Called when model consolidates (anchor is updated).
         
         Args:
-            ctx: Current OccamContext (read-only)
+            ctx: Current Ockham context
         """
         pass
     
-    def reset(self):
-        """Reset plugin internal state."""
+    def reset(self) -> None:
+        """Reset plugin to initial state."""
         pass
     
-    def get_state(self) -> Dict:
-        """Get plugin state for logging."""
+    def get_state(self) -> Dict[str, any]:
+        """Get plugin state for logging/debugging."""
         return {
             'name': self.name,
             'enabled': self.enabled,
         }
+    
+    def __repr__(self):
+        status = "enabled" if self.enabled else "disabled"
+        return f"{self.__class__.__name__}(name='{self.name}', {status})"
 
 
 class OckhamGatePlugin(OccamPlugin):
     """
-    Surprise gate: Skip updates when task_loss < surprise_threshold.
+    Implements the core Ockham surprise gate.
     
-    Args:
-        surprise_threshold: Minimum loss to trigger update
-        adaptive: Whether to adapt threshold based on loss distribution
-        adaptation_rate: Speed of threshold adaptation
+    Skips updates when task_loss < surprise_threshold.
     """
     
     def __init__(
         self,
+        name: str = "ockham_gate",
         surprise_threshold: float = 2.0,
         adaptive: bool = False,
         adaptation_rate: float = 0.01,
     ):
-        super().__init__("ockham_gate")
+        super().__init__(name)
         self.surprise_threshold = surprise_threshold
         self.adaptive = adaptive
         self.adaptation_rate = adaptation_rate
@@ -100,11 +102,19 @@ class OckhamGatePlugin(OccamPlugin):
     def on_batch_start(self, ctx: OccamContext) -> OccamContext:
         # Adapt threshold if enabled
         if self.adaptive and len(self.loss_history) >= 10:
-            median_loss = sorted(self.loss_history)[len(self.loss_history) // 2]
-            target_threshold = median_loss * 1.5
-            self.surprise_threshold += self.adaptation_rate * (target_threshold - self.surprise_threshold)
+            sorted_losses = sorted(self.loss_history)
+            median = sorted_losses[len(sorted_losses) // 2]
+            target_threshold = median * 1.2
+            
+            self.surprise_threshold += self.adaptation_rate * (
+                target_threshold - self.surprise_threshold
+            )
+            self.surprise_threshold = max(0.1, min(10.0, self.surprise_threshold))
         
-        # Gate logic: skip update if loss is low (not surprising)
+        # Update context threshold
+        ctx.surprise_threshold = self.surprise_threshold
+        
+        # Check if update should be skipped
         if ctx.task_loss < self.surprise_threshold:
             ctx.updated = False
             self.skip_count += 1
@@ -113,8 +123,12 @@ class OckhamGatePlugin(OccamPlugin):
             self.update_count += 1
         
         # Store for logging
-        ctx.custom[f'{self.name}_threshold'] = self.surprise_threshold
-        ctx.custom[f'{self.name}_skipped'] = not ctx.updated
+        ctx.custom[f'{self.name}_skip_count'] = self.skip_count
+        ctx.custom[f'{self.name}_update_count'] = self.update_count
+        if self.update_count + self.skip_count > 0:
+            update_rate = self.update_count / (self.update_count + self.skip_count)
+            ctx.custom[f'{self.name}_update_rate'] = update_rate
+            ctx.update_rate = update_rate
         
         return ctx
     
@@ -125,10 +139,16 @@ class OckhamGatePlugin(OccamPlugin):
             if len(self.loss_history) > self.max_history_len:
                 self.loss_history.pop(0)
     
+    def reset(self):
+        self.loss_history = []
+        self.skip_count = 0
+        self.update_count = 0
+    
     def get_state(self) -> Dict:
         state = super().get_state()
-        total = self.skip_count + self.update_count
-        update_rate = self.update_count / total if total > 0 else 0.0
+        update_rate = 0.0
+        if self.update_count + self.skip_count > 0:
+            update_rate = self.update_count / (self.update_count + self.skip_count)
         
         state.update({
             'surprise_threshold': self.surprise_threshold,
@@ -145,20 +165,12 @@ class CompressorPlugin(OccamPlugin):
     Audio compressor-inspired dynamic hyperparameter control.
     
     Automatically adjusts lambda_ockham and learning_rate based on
-    complexity_cost, similar to how an audio compressor reduces dynamic range.
-    
-    Args:
-        threshold: Complexity cost threshold to trigger compression
-        ratio: Compression ratio (how much to increase lambda when over threshold)
-        attack: Speed of compression increase (0.0 to 1.0)
-        release: Speed of compression decrease (0.0 to 1.0)
-        makeup_gain: Learning rate boost when model is stable
-        min_lambda: Minimum allowed lambda_ockham
-        max_lambda: Maximum allowed lambda_ockham
+    complexity_cost.
     """
     
     def __init__(
         self,
+        name: str = "compressor",
         threshold: float = 0.1,
         ratio: float = 2.0,
         attack: float = 0.1,
@@ -167,7 +179,7 @@ class CompressorPlugin(OccamPlugin):
         min_lambda: float = 0.001,
         max_lambda: float = 0.5,
     ):
-        super().__init__("compressor")
+        super().__init__(name)
         self.threshold = threshold
         self.ratio = ratio
         self.attack = attack
@@ -228,7 +240,7 @@ class CompressorPlugin(OccamPlugin):
         ctx.lambda_ockham = max(self.min_lambda, min(self.max_lambda, new_lambda))
         ctx.learning_rate = max(1e-6, min(1e-2, new_lr))
         
-        # Store for logging
+        # Store smoothed complexity for logging
         ctx.custom[f'{self.name}_smoothed_complexity'] = smoothed
         ctx.custom[f'{self.name}_compressing'] = over_threshold
         
@@ -252,96 +264,21 @@ class CompressorPlugin(OccamPlugin):
         return state
 
 
-class EQPlugin(OccamPlugin):
-    """
-    Equalizer-inspired curriculum learning plugin.
-    
-    Adjusts learning focus on different "bands" of data difficulty.
-    Weights samples differently based on loss distribution.
-    
-    Args:
-        bands: Dictionary mapping difficulty levels to gain values
-                e.g., {"easy": 0.5, "medium": 1.0, "hard": 1.5}
-        adaptation_rate: How quickly to adjust band gains
-    """
-    
-    def __init__(
-        self,
-        bands: Optional[Dict[str, float]] = None,
-        adaptation_rate: float = 0.01,
-    ):
-        super().__init__("eq")
-        self.bands = bands or {"easy": 0.5, "medium": 1.0, "hard": 1.5}
-        self.adaptation_rate = adaptation_rate
-        
-        # Track loss distribution to classify difficulty
-        self.loss_history = []
-        self.max_history_len = 100
-        self.current_band = "medium"
-    
-    def on_batch_start(self, ctx: OccamContext) -> OccamContext:
-        # Track loss history
-        if ctx.updated:
-            self.loss_history.append(ctx.task_loss)
-            if len(self.loss_history) > self.max_history_len:
-                self.loss_history.pop(0)
-        
-        # Classify current batch difficulty
-        if len(self.loss_history) >= 10:
-            sorted_losses = sorted(self.loss_history)
-            percentile_33 = sorted_losses[len(sorted_losses) // 3]
-            percentile_66 = sorted_losses[2 * len(sorted_losses) // 3]
-            
-            if ctx.task_loss < percentile_33:
-                self.current_band = "easy"
-            elif ctx.task_loss < percentile_66:
-                self.current_band = "medium"
-            else:
-                self.current_band = "hard"
-        
-        # Apply band gain to learning rate
-        gain = self.bands.get(self.current_band, 1.0)
-        ctx.learning_rate *= gain
-        
-        # Store for logging
-        ctx.custom[f'{self.name}_band'] = self.current_band
-        ctx.custom[f'{self.name}_gain'] = gain
-        
-        return ctx
-    
-    def reset(self):
-        self.loss_history = []
-        self.current_band = "medium"
-    
-    def get_state(self) -> Dict:
-        state = super().get_state()
-        state.update({
-            'bands': self.bands,
-            'current_band': self.current_band,
-            'loss_history_len': len(self.loss_history),
-        })
-        return state
-
-
 class LimiterPlugin(OccamPlugin):
     """
     Hard limiter for complexity cost and gradient norm.
     
     Prevents model from drifting too far from anchor or having exploding gradients.
-    
-    Args:
-        complexity_ceiling: Maximum allowed complexity_cost
-        grad_norm_ceiling: Maximum allowed gradient norm
-        force_consolidate: Whether to force consolidation when ceiling is hit
     """
     
     def __init__(
         self,
+        name: str = "limiter",
         complexity_ceiling: float = 0.2,
         grad_norm_ceiling: float = 1.0,
         force_consolidate: bool = True,
     ):
-        super().__init__("limiter")
+        super().__init__(name)
         self.complexity_ceiling = complexity_ceiling
         self.grad_norm_ceiling = grad_norm_ceiling
         self.force_consolidate = force_consolidate
@@ -361,7 +298,7 @@ class LimiterPlugin(OccamPlugin):
                 ctx.consolidating = True
                 ctx.custom[f'{self.name}_consolidate_triggered'] = True
         
-        # Check gradient norm ceiling (informational only, clipping happens elsewhere)
+        # Check gradient norm ceiling (informational only)
         if ctx.grad_norm > self.grad_norm_ceiling:
             self.grad_norm_hits += 1
         
@@ -384,107 +321,40 @@ class LimiterPlugin(OccamPlugin):
         return state
 
 
-class SaturationPlugin(OccamPlugin):
-    """
-    Controlled noise injection for exploration and robustness.
-    
-    Adds small amounts of noise to gradients or learning rate,
-    similar to audio saturation adding harmonics.
-    
-    Args:
-        drive: Amount of noise to inject (0.0 to 1.0)
-        noise_type: Where to inject noise ('gradient', 'learning_rate', 'both')
-        warmup_iters: Number of iterations before noise is fully active
-    """
-    
-    def __init__(
-        self,
-        drive: float = 0.01,
-        noise_type: str = 'learning_rate',
-        warmup_iters: int = 100,
-    ):
-        super().__init__("saturation")
-        self.drive = drive
-        self.noise_type = noise_type
-        self.warmup_iters = warmup_iters
-        
-        self.current_drive = 0.0
-    
-    def on_batch_start(self, ctx: OccamContext) -> OccamContext:
-        # Warmup: gradually increase drive
-        if ctx.iter_num < self.warmup_iters:
-            self.current_drive = self.drive * (ctx.iter_num / self.warmup_iters)
-        else:
-            self.current_drive = self.drive
-        
-        # Apply noise to learning rate
-        if self.noise_type in ['learning_rate', 'both']:
-            noise = np.random.randn() * self.current_drive
-            ctx.learning_rate *= (1.0 + noise)
-            ctx.learning_rate = max(1e-6, ctx.learning_rate)  # Keep positive
-        
-        # Note: Gradient noise would be applied in the training loop itself,
-        # not here. We just set a flag for the training loop to use.
-        if self.noise_type in ['gradient', 'both']:
-            ctx.custom[f'{self.name}_gradient_noise'] = self.current_drive
-        
-        ctx.custom[f'{self.name}_current_drive'] = self.current_drive
-        
-        return ctx
-    
-    def reset(self):
-        self.current_drive = 0.0
-    
-    def get_state(self) -> Dict:
-        state = super().get_state()
-        state.update({
-            'drive': self.drive,
-            'noise_type': self.noise_type,
-            'current_drive': self.current_drive,
-        })
-        return state
-
-
 if __name__ == "__main__":
     print("=" * 80)
-    print("COMPLETE PLUGINS V2 DEMONSTRATION (All 5 Plugins)")
+    print("PLUGINS V2 DEMONSTRATION (with OccamContext)")
     print("=" * 80)
     
-    # Create all 5 plugins
-    gate = OckhamGatePlugin(surprise_threshold=1.5, adaptive=False)
-    compressor = CompressorPlugin(threshold=0.1, ratio=2.0, attack=0.1, release=0.05)
-    eq = EQPlugin(bands={"easy": 0.5, "medium": 1.0, "hard": 1.5})
-    limiter = LimiterPlugin(complexity_ceiling=0.2, grad_norm_ceiling=1.0)
-    saturation = SaturationPlugin(drive=0.01, noise_type='learning_rate', warmup_iters=10)
+    # Create plugins
+    gate = OckhamGatePlugin(surprise_threshold=1.5)
+    compressor = CompressorPlugin(threshold=0.1, ratio=2.0)
+    limiter = LimiterPlugin(complexity_ceiling=0.2)
     
-    plugins = [gate, compressor, eq, limiter, saturation]
+    plugins = [gate, compressor, limiter]
     
-    print(f"Plugin chain: {[p.name for p in plugins]}")
+    print(f"\nPlugin chain: {[p.name for p in plugins]}")
     print("\nSimulating training with varying conditions...")
     print("-" * 80)
     
     # Simulate training
     for i in range(20):
-        # Create context with varying metrics
         ctx = OccamContext(
             iter_num=i,
             task_loss=2.0 + 0.5 * np.sin(i * 0.3),  # Oscillating loss
             learning_rate=1e-3,
             lambda_ockham=0.01,
-            surprise_threshold=1.5,
+            surprise_threshold=2.0,
             complexity_cost=0.05 + i * 0.01,  # Increasing complexity
-            grad_norm=0.5 + 0.3 * np.random.randn(),
-            model_params=7_000_000_000,
-            memory_footprint_mb=14_000,
-            inference_flops=1.4e12,
+            grad_norm=0.5 + 0.2 * np.random.randn(),
         )
         
-        # Process through plugin chain
+        # Process batch start (plugins modify hyperparameters)
         for plugin in plugins:
             if plugin.enabled:
                 ctx = plugin.on_batch_start(ctx)
         
-        # Process batch end
+        # Process batch end (plugins react to metrics)
         for plugin in plugins:
             if plugin.enabled:
                 plugin.on_batch_end(ctx)
@@ -492,20 +362,18 @@ if __name__ == "__main__":
         # Log every 5 iterations
         if i % 5 == 0:
             updated_str = "✓" if ctx.updated else "✗"
-            band = ctx.custom.get('eq_band', 'unknown')
             compressing = ctx.custom.get('compressor_compressing', False)
             comp_str = "🔴" if compressing else "🟢"
             
             print(
                 f"Iter {i:2d}: loss={ctx.task_loss:.2f} {updated_str}, "
                 f"complexity={ctx.complexity_cost:.3f} {comp_str}, "
-                f"band={band}, "
-                f"λ={ctx.lambda_ockham:.4f}, lr={ctx.learning_rate:.6f}"
+                f"λ={ctx.lambda_ockham:.4f}, "
+                f"lr={ctx.learning_rate:.6f}"
             )
     
     print("-" * 80)
     print("\n✓ Demo complete!")
     print("\nFinal plugin states:")
     for plugin in plugins:
-        state = plugin.get_state()
-        print(f"  {plugin.name}: {state}")
+        print(f"  {plugin.name}: {plugin.get_state()}")
